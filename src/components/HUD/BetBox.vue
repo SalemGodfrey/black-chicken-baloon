@@ -47,21 +47,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-
-const betValue = ref(1)
-
-const emit = defineEmits(['betRef'])
-
-onMounted(() => {
-  emit('betRef', betValue.value)
+const props = defineProps({
+  betValue: Number,
 })
 
+const emit = defineEmits(['update:betValue'])
+
 function increaseBet() {
-  betValue.value++
+  emit('update:betValue', props.betValue + 10)
 }
 function decreaseBet() {
-  betValue.value--
+  emit('update:betValue', props.betValue - 10)
+  if (props.betValue <= 10) {
+    emit('update:betValue', 10)
+  }
 }
 </script>
 

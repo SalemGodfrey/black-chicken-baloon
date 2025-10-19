@@ -39,16 +39,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
 
-const balanceValue = ref(1000000)
+// import { ref, onMounted } from 'vue'
 
-// Определяем эмиты
-const emit = defineEmits(['balanceRef'])
-
-// Эмитим событие когда компонент смонтирован
-onMounted(() => {
-  emit('balanceRef', balanceValue.value)
+defineProps({
+  balanceValue: Number
 })
 </script>
 
@@ -59,6 +54,7 @@ onMounted(() => {
   left: 50%;
   width: 100%;
   padding: 0 10px;
+  z-index: 3;
   transform: translateX(-50%);
   display: flex;
   justify-content: center;

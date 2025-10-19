@@ -1,5 +1,12 @@
 <template>
-  <button ref="startButton" class="start-button">
+  <button
+    class="start-button"
+    @mousedown="startHold"
+    @touchstart="startHold"
+    @mouseup="endHold"
+    @mouseleave="endHold"
+    @touchend="endHold"
+  >
     <svg viewBox="0 0 24 24" fill="none" class="fire" xmlns="http://www.w3.org/2000/svg">
       <g id="SVGRepo_iconCarrier">
         <path
@@ -14,10 +21,28 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { defineEmits } from 'vue'
 
-const startButton = ref(null)
+const emit = defineEmits(['button-touch', 'hold-start', 'hold-end'])
 
+let holdInterval = null
+
+function startHold() {
+  if (!holdInterval) {
+    emit('button-touch')
+    holdInterval = setInterval(() => {
+      emit('hold-start')
+    }, 1000)
+  }
+}
+
+function endHold() {
+  if (holdInterval) {
+    clearInterval(holdInterval)
+    holdInterval = null
+    emit('hold-end')
+  }
+}
 </script>
 
 <style>
