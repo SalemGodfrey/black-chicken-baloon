@@ -1,8 +1,15 @@
 <template>
   <div ref="gameContainer" class="game-container">
+    <div class="timer">
+      <span>$</span>
+      <span>{{ state.bet }}</span
+      ><span class="cents">.{{ formattedCents }}</span>
+    </div>
+
     <ModalWin :isModalVisible="state.isModalVisible" @tryAgain="tryAgain" />
-    <BalanceBox :balanceValue="state.balance" />
+    <BalanceBox :balanceValue="formattedBalance" />
     <CockImage :isCockUp="state.isCockUp" :isCockDead="state.isCockDead" />
+
     <div class="bet-block">
       <StartButton @button-touch="onButtonTouch" @hold-start="onHoldStart" @hold-end="onHoldEnd" />
       <BetBox :betValue="state.bet" @update:betValue="state.bet = $event" />
@@ -11,18 +18,33 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { Howl, Howler } from 'howler'
+import { ref, reactive, computed } from 'vue'
 import ModalWin from './HUD/ModalWin.vue'
 import BalanceBox from './HUD/BalanceBox.vue'
 import StartButton from './HUD/StartButton.vue'
 import BetBox from './HUD/BetBox.vue'
 import CockImage from './HUD/CockImage.vue'
-import { reactive } from 'vue'
 
 const gameContainer = ref(null)
+// Howler.js may not play sounds unless triggered by a user interaction due to browser autoplay policy.
+import themeMp3 from '@/assets/theme.mp3'
+
+// Play sound on page load
+window.addEventListener('DOMContentLoaded', () => {
+  var sound = new Howl({
+    src: [themeMp3],
+    autoplay: true,
+    loop: true,
+    volume: 0.5,
+  });
+  sound.play();
+});
+
 const state = reactive({
-  balance: 1000000,
-  bet: 100,
+  balance: 1000000, // центы, чтобы не терять точность
+  bet: 100, // доллары
+  cents: 0, // центы от 0 до 99
   isHolding: false,
   secsHold: 0,
   needStart: true,
@@ -31,14 +53,41 @@ const state = reactive({
   isCockUp: true,
   isCockDead: false,
   isModalVisible: false,
+  msTimer: null,
 })
 
+// 👇 Форматированный баланс в долларах
+const formattedBalance = computed(() => {
+  const dollars = Math.floor(state.balance / 100)
+  const cents = state.balance % 100
+  return `$${dollars}.${cents.toString().padStart(2, '0')}`
+})
+
+// 👇 Форматированные центы для таймера
+const formattedCents = computed(() => state.cents.toString().padStart(2, '0'))
+
 function onButtonTouch() {
-  if (!state.needStart) return // защита
+  if (!state.needStart) return
   console.log('clicked')
   state.isHolding = true
-  state.needStart = false // запрещаем повторный старт удержания
-  state.balance -= state.bet
+  state.needStart = false
+
+  if (state.msTimer) {
+    clearInterval(state.msTimer)
+    state.msTimer = null
+  }
+
+  state.cents = 0
+  state.msTimer = setInterval(() => {
+    state.cents += 1
+    if (state.cents >= 100) {
+      state.cents = 0
+      state.bet += 1
+    }
+  }, 100)
+
+  // баланс в центах
+  state.balance -= state.bet * 100
   state.killZone = Math.floor(Math.random() * (14 - 3 + 1)) + 3
   console.log('killZone:', state.killZone)
   state.isCockUp = false
@@ -46,8 +95,9 @@ function onButtonTouch() {
 }
 
 function onHoldStart() {
-  if (!state.isHolding || state.isCockDead) return // защита от удержания после проигрыша
-  if (state.holdTimer) return // уже идёт таймер
+  if (!state.isHolding || state.isCockDead) return
+  if (state.holdTimer) return
+
   state.holdTimer = setInterval(() => {
     state.secsHold++
     console.log('secsHold:', state.secsHold)
@@ -58,6 +108,10 @@ function onHoldStart() {
       console.log('killed')
       state.isCockDead = true
       state.isHolding = false
+      if (state.msTimer) {
+        clearInterval(state.msTimer)
+        state.msTimer = null
+      }
       setTimeout(() => tryAgain(), 3000)
 
       let cockUp = document.querySelector('.dead-cock')
@@ -76,18 +130,33 @@ function onHoldStart() {
 }
 
 function onHoldEnd() {
-  if (!state.isHolding) return // если удержание не было, не делаем ничего
+  if (!state.isHolding) return
+
   if (state.holdTimer) {
     clearInterval(state.holdTimer)
     state.holdTimer = null
   }
 
+  if (state.msTimer) {
+    clearInterval(state.msTimer)
+    state.msTimer = null
+
+    // вычислим выигрыш: 10% от ставки + доля центов
+    const betCents = state.bet * 100 + state.cents
+    const reward = Math.floor(betCents * 0.1)
+    state.balance += reward
+
+    // сброс ставки
+    state.bet = 100
+    state.cents = 0
+  }
+
   state.isHolding = false
   console.log('hold end')
 
-  // проверяем, что игра ещё не окончена
   if (!state.isCockDead && !state.needStart) {
-    state.balance += state.bet * 2
+    // выигрыш: удвоение ставки
+    state.balance += state.bet * 200
     console.log('win')
     state.isModalVisible = true
   }
@@ -104,7 +173,12 @@ function tryAgain() {
   state.secsHold = 0
   state.needStart = true
 
-  // Перезагружаем видео чтобы оно началось с начала
+  if (state.msTimer) {
+    clearInterval(state.msTimer)
+    state.msTimer = null
+  }
+  state.cents = 0
+
   let cockUp = document.querySelector('.dead-cock')
   if (cockUp) {
     cockUp.currentTime = 0
@@ -129,6 +203,19 @@ function tryAgain() {
 </script>
 
 <style>
+.timer {
+  color: white;
+  font-size: 3rem;
+  font-family: 'Dela Gothic One';
+  position: absolute;
+  top: 10%;
+  z-index: 1000;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 .sound-button {
   position: absolute;
   top: 7%;
