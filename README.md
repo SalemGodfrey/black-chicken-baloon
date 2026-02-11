@@ -35,6 +35,7 @@ Short rounds. Instant feedback. Clear tension curve.
 ## ⚙ Tech Stack
 
 - JavaScript (Vanilla)
+- Vue
 - Phaser
 - HTML5 Canvas
 - Spine 2D
